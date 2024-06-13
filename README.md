@@ -27,11 +27,7 @@ There are some manual steps required
 ### Requirements
 
 - python3
-- `pip3 install selenium`
-- `pip install webdriver-manager`
-- `pip install geckodriver-autoinstaller` (firefox)
-- `pip install chromedriver-binary` (chrome, you'll need to change the src code to run this)
-
+- see [requirements.txt](../requirements.txt)
 
 ### Errors
 
