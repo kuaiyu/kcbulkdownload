@@ -27,7 +27,7 @@ There are some manual steps required
 ### Requirements
 
 - python3
-- see [requirements.txt](../requirements.txt)
+- see [requirements.txt](./requirements.txt)
 
 ### Errors
 
