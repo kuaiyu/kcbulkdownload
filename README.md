@@ -31,3 +31,8 @@ There are some manual steps required
 - `pip install webdriver-manager`
 - `pip install geckodriver-autoinstaller` (firefox)
 - `pip install chromedriver-binary` (chrome, you'll need to change the src code to run this)
+
+
+### Errors
+
+- Some of the scrapped URL's lead to an access denied request. I did not find it worth my time to handle these errors. I've logged the URL. You can look at the script output and manually try to find the image.
