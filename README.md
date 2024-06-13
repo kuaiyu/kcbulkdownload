@@ -1,4 +1,4 @@
-# Quickstart
+### Quickstart
 
 ```
 usage: kcbulkdownload.py [-h] [--json_file JSON_FILE] --child_name CHILD_NAME [--single_proc]
@@ -15,3 +15,19 @@ optional arguments:
                         Name of the child. This is a string that will be appended to each image name
   --single_proc         Do not download with multiprocessing. Just use the main Process. This is slower but more debugable
 ```
+
+
+### Manual Steps
+
+There are some manual steps required
+1. Entering username/password
+2. Clicking to the `Entries` tab. When in doubt, look for the url that matches https://classroom.kindercare.com/accounts/XXX/activities
+
+
+### Requirements
+
+- python3
+- `pip3 install selenium`
+- `pip install webdriver-manager`
+- `pip install geckodriver-autoinstaller` (firefox)
+- `pip install chromedriver-binary` (chrome, you'll need to change the src code to run this)
