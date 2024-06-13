@@ -143,9 +143,9 @@ class DownloadHelper:
             try:
                 dt = datetime.strptime(response.headers['Last-Modified'], "%a, %d %b %Y %H:%M:%S %Z")
             except:
-                pdb.set_trace()
-                dt = datetime.now()
-                pass
+                print(f'ERROR TRYING TO WRITE {url}. SKipping...')
+                continue
+
             hash_last = response.headers['x-amz-request-id'][-4:]
             file_name = self._get_file_name(dt, is_video, hash_last)
 
