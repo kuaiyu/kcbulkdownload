@@ -2,6 +2,7 @@
 
 import pdb
 import time
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -24,6 +25,75 @@ import json
 import argparse
 
 
+class LinkCacheUser:
+
+    VIDEO_LINKS = 'video_links'
+    IMAGE_LINKS = 'image_links'
+
+    def __init__(self, file_path):
+        self.file_path = file_path
+        self.cached_links_dict = self.load_json()
+        self.existing_urls_dict = self.create_links_dict()
+
+    def write_json(self):
+        """
+        Write combined_links to json
+        """
+        with open(self.file_path, 'w') as file:
+            json.dump(self.combined_links, file, indent=4)
+
+    def load_json(self):
+        """ If you pass in the wrong file path crash and try again with the right one.
+        """
+        if not self.file_path:
+            return {}
+
+        with open(self.file_path, 'r') as f:
+            data = json.load(f)
+        return data
+
+    def create_links_dict(self):
+        """ used for optimized searching if an image/video url exists
+        """
+        existing_urls = {}
+        for _, urls in self.cached_links_dict.items():
+            assert(type(urls) == list)
+            for full_url in urls:
+                # full_url: https://himama-kce.s3.amazonaws.com/uploads/activity_file/image/asdf/big_asdflks.jpeg?X-Amz-Expires=129600&X...
+                # prefix:   https://himama-kce.s3.amazonaws.com/uploads/activity_file/image/asdf/big_asdflks.jpeg
+                prefix = full_url.split('?')[0]
+                existing_urls[prefix] = True
+
+        return existing_urls
+
+    def does_new_url_exist_in_cache(self, new_url:str):
+        """ check if new_url exists in the cache
+        """
+        new_url_prefix = new_url.split('?')[0]
+        if new_url_prefix in self.existing_urls_dict:
+            return True
+
+    def save_links(self, image_links:list, video_links:list):
+
+        self.new_output = {
+            self.IMAGE_LINKS: image_links,
+            self.VIDEO_LINKS: video_links,
+        }
+
+        self.combined_links = {
+            self.IMAGE_LINKS : self.cached_links_dict[self.IMAGE_LINKS] + image_links,
+            self.VIDEO_LINKS : self.cached_links_dict[self.VIDEO_LINKS] + video_links,
+        }
+
+    def get_new_links(self, is_video:bool) -> list:
+        key = self.VIDEO_LINKS if is_video else self.IMAGE_LINKS
+        return self.new_output[key]
+
+
+
+
+
+
 class WebClicker:
 
     def __init__(self):
@@ -32,6 +102,7 @@ class WebClicker:
 
         self.image_links = []
         self.video_links = []
+
 
     def go_to_app_site(self):
         """ Goes to the website
@@ -52,7 +123,25 @@ class WebClicker:
         print('Then click ENTRIES.')
         input('Once you see the url == https://classroom.kindercare.com/accounts/XXX/activities, press enter on this terminal')
 
-    def scrape_all_images(self):
+    def go_to_direct_url(self, url:str):
+        """ Goes to the website
+        """
+        print(f'Going to direct URL: {url}')
+        self.browser.get(url)
+
+    def fill_out_credentials(self, args, do_wait:bool):
+
+        if not args.user or not args.password:
+            msg = "Please fillout user and password manually"
+            action = input if do_wait else print
+            action(msg)
+
+        self._find_elm_by_type(By.ID, "user_login").send_keys(args.user)
+        self._find_elm_by_type(By.ID, "user_password").send_keys(args.password)
+        self._find_elm_by_type(By.NAME, "commit").click()
+
+
+    def scrape_all_images(self, links:LinkCacheUser):
         """ Loops through each entry and saves a list of images
         """
 
@@ -72,35 +161,30 @@ class WebClicker:
             time.sleep(0.1)
 
             image_fields = self.browser.find_elements(By.CSS_SELECTOR, '[title="Download Image"]')
-            self.image_links += [x.get_attribute('href') for x in image_fields]
+            new_image_links = [x.get_attribute('href') for x in image_fields]
+            self.image_links += new_image_links
 
             video_fields = self.browser.find_elements(By.CSS_SELECTOR, '[title="Download Video"]')
-            self.video_links += [x.get_attribute('href') for x in video_fields]
+            new_video_links = [x.get_attribute('href') for x in video_fields]
+            self.video_links += new_video_links
 
             print(f'scraping {len(image_fields)} images and {len(video_fields)} videos from {self.browser.current_url}')
             if not next_button:
                 break
 
+            for new_link in new_image_links + new_video_links:
+                if links.does_new_url_exist_in_cache(new_link):
+                    print(f'{new_link} already exists from passed in json, stop searching')
+                    return
+
             next_button.click()
-
-
-    def get_url_output(self):
-        """ output the list of urls
-        """
-        output = {
-            'image_links': self.image_links,
-            'video_links': self.video_links,
-        }
-
-        return output
 
     def _find_elm_by_type(self, by_type:str, key_name:str, wait_time:int=5):
         return WebDriverWait(self.browser, wait_time).until(EC.presence_of_element_located((by_type, key_name)))
 
 
 class DownloadHelper:
-    def __init__(self, json_data, args):
-        self.json_data = json_data
+    def __init__(self, args):
         self.child_name = args.child_name
         self.single_proc = False
         self.single_proc = args.single_proc
@@ -135,9 +219,14 @@ class DownloadHelper:
         return [my_list[i * len(my_list) // num_parts: (i + 1) * len(my_list) // num_parts] for i in range(num_parts)]
 
 
-    def _dl_from_list(self, input_list, is_video):
+    def _dl_from_list(self, input_list, is_video, links:LinkCacheUser):
 
         for url in input_list:
+
+            if links.does_new_url_exist_in_cache(url):
+                print(f'SKipping since url exists in cache {url}')
+                continue
+
             response = requests.get(url)
 
             try:
@@ -153,16 +242,12 @@ class DownloadHelper:
             with open(file_name, 'wb+') as f:
                 f.write(response.content)
 
-    def _download_internal(self, is_video):
+    def _download_internal(self, is_video, links:LinkCacheUser):
 
-        links = 'image_links'
-        if is_video:
-            links = 'video_links'
-
-        link_list = self.json_data.get(links, [])
+        link_list = links.get_new_links(is_video)
 
         if self.single_proc:
-            self._dl_from_list(link_list, is_video)
+            self._dl_from_list(link_list, is_video, links)
             return
 
         num_procs = 4
@@ -172,7 +257,7 @@ class DownloadHelper:
         for inner_list in outer_list:
             proc = multiprocessing.Process(
                                 target=self._dl_from_list,
-                                args=(inner_list, is_video)
+                                args=(inner_list, is_video, links)
                                 )
             proc_list.append(proc)
             proc.start()
@@ -181,25 +266,12 @@ class DownloadHelper:
             proc.join()
 
 
-    def download_all(self):
-        self._download_internal(is_video=True)
-        self._download_internal(is_video=False)
+    def download_all(self, links:LinkCacheUser):
+
+        self._download_internal(True, links)
+        self._download_internal(False, links)
 
 
-class JsonUser:
-
-    @staticmethod
-    def save(output, file_path):
-        with open(file_path, 'w') as file:
-            json.dump(output, file, indent=4)
-
-    @staticmethod
-    def load(file_path):
-        """ If you pass in the wrong file path crash and try again with the right one.
-        """
-        with open(file_path, 'r') as f:
-            data = json.load(f)
-        return data
 
 
 
@@ -214,17 +286,29 @@ def get_args():
             )
 
     parser.add_argument('--json_file', dest='json_file',
-                        help='cached file of links. This saves 2 minutes of browser clicking',
+                        help='cached file of links. This is used for incremental downloads',
                         type=str, default=None, required=False)
 
     parser.add_argument('--child_name', dest='child_name',
                         help='Name of the child. This is a string that will be appended to each image name',
-                        type=str, default='',
+                        type=str,
                         required=True)
 
     parser.add_argument('--single_proc', dest='single_proc', action='store_true',
                         help='Do not download with multiprocessing. Just use the main Process. This is slower but more debugable',
                         required=False)
+
+    parser.add_argument('--password', dest='password',
+                        help='Optional password. If not provided, you can enter it manually in the browser',
+                        type=str, required=False)
+
+    parser.add_argument('--user', dest='user',
+                        help='Optional username. If not provided, you can enter it manually in the browser',
+                        type=str, required=False)
+
+    parser.add_argument('--direct_url', dest='direct_url',
+                        help='Optional direct url to https://classroom.kindercare.com/accounts/XXX/activities. This will save some clicking',
+                        type=str, required=False)
 
     return parser.parse_args()
 
@@ -233,18 +317,25 @@ def main():
 
     args = get_args()
 
-    if args.json_file:
-        links = JsonUser.load(args.json_file)
-    else:
-        clicker = WebClicker()
-        clicker.go_to_app_site()
-        clicker.wait_for_child_choice()
-        clicker.scrape_all_images()
-        links = clicker.get_url_output()
-        clicker.browser.close()
-        JsonUser.save(links, "links.json")
+    links = LinkCacheUser(args.json_file)
+    clicker = WebClicker()
 
-    DownloadHelper(links, args).download_all()
+    if args.direct_url:
+        clicker.go_to_direct_url(args.direct_url)
+        clicker.fill_out_credentials(args, True)
+    else:
+        clicker.go_to_app_site()
+        clicker.fill_out_credentials(args, False)
+        clicker.wait_for_child_choice()
+
+    clicker.scrape_all_images(links)
+    clicker.browser.close()
+
+    links.save_links(clicker.image_links, clicker.video_links)
+    links.write_json()
+
+    DownloadHelper(args).download_all(links)
+
     print(f'End Script')
 
 if __name__ == "__main__":
