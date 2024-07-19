@@ -90,10 +90,6 @@ class LinkCacheUser:
         return self.new_output[key]
 
 
-
-
-
-
 class WebClicker:
 
     def __init__(self):
@@ -270,9 +266,6 @@ class DownloadHelper:
 
         self._download_internal(True, links)
         self._download_internal(False, links)
-
-
-
 
 
 def get_args():
