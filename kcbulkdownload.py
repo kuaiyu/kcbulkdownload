@@ -131,6 +131,7 @@ class WebClicker:
             msg = "Please fillout user and password manually"
             action = input if do_wait else print
             action(msg)
+            return
 
         self._find_elm_by_type(By.ID, "user_login").send_keys(args.user)
         self._find_elm_by_type(By.ID, "user_password").send_keys(args.password)
