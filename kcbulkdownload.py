@@ -3,6 +3,7 @@
 import pdb
 import time
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -24,6 +25,8 @@ import multiprocessing
 import json
 import argparse
 
+import pyexif
+
 
 class LinkCacheUser:
 
@@ -39,7 +42,8 @@ class LinkCacheUser:
         """
         Write combined_links to json
         """
-        with open(self.file_path, 'w') as file:
+        file_path = self.file_path if self.file_path else "links.json"
+        with open(file_path, 'w') as file:
             json.dump(self.combined_links, file, indent=4)
 
     def load_json(self):
@@ -81,8 +85,8 @@ class LinkCacheUser:
         }
 
         self.combined_links = {
-            self.IMAGE_LINKS : self.cached_links_dict[self.IMAGE_LINKS] + image_links,
-            self.VIDEO_LINKS : self.cached_links_dict[self.VIDEO_LINKS] + video_links,
+            self.IMAGE_LINKS : self.cached_links_dict.get(self.IMAGE_LINKS, []) + image_links,
+            self.VIDEO_LINKS : self.cached_links_dict.get(self.VIDEO_LINKS, []) + video_links,
         }
 
     def get_new_links(self, is_video:bool) -> list:
@@ -197,7 +201,7 @@ class DownloadHelper:
         file_date_time = dt.strftime("%Y_%m_%d")
 
         out_dir = self.IMAGE_DIR
-        file_type = '.png'
+        file_type = '.jpeg'
         if is_video:
             out_dir = self.VIDEO_DIR
             file_type = '.mp4'
@@ -216,9 +220,34 @@ class DownloadHelper:
         return [my_list[i * len(my_list) // num_parts: (i + 1) * len(my_list) // num_parts] for i in range(num_parts)]
 
 
+    def _add_tags(self, file_name: str, dt: datetime):
+        """ add date plus hardcoded GPS location
+        """
+
+        # Note this GPS wont work for google photos (should work on apple).
+        # As a work around, we need to make an album, select all photos
+        # and edit the location in one shot.
+        BUILDING_Q_GPS_LOCATION = "37.406952, -121.944949"
+        meta_dt = dt.strftime("%Y:%m:%d %H:%M:%S")
+
+        try:
+            metadata = pyexif.ExifEditor(file_name)
+            if metadata.getTag('FileType') not in ['PNG', 'JPEG', 'MP4']:
+                print("ERROR ignoring unknown format")
+                return
+            metadata.setTag('GPSPosition', BUILDING_Q_GPS_LOCATION)
+            metadata.setTag('DateTimeOriginal', meta_dt)
+            metadata.setTag('FileModifyDate', meta_dt) # make sure this is last. Otherwise modify date changes.
+        except RuntimeError:
+            print("ERROR exiftool is required. Two choices:")
+            print("1) Install exiftool here: `https://exiftool.org/index.html`.")
+            print("2) You can comment out the import pyexif and this return code.")
+            sys.exit(-1)
+
+
     def _dl_from_list(self, input_list, is_video, links:LinkCacheUser):
 
-        for url in input_list:
+        for idx, url in enumerate(input_list):
 
             if links.does_new_url_exist_in_cache(url):
                 print(f'SKipping since url exists in cache {url}')
@@ -235,9 +264,11 @@ class DownloadHelper:
             hash_last = response.headers['x-amz-request-id'][-4:]
             file_name = self._get_file_name(dt, is_video, hash_last)
 
-            print(f'writing file to {file_name}')
+            print(f'[{idx+1}/{len(input_list)}]\t writing: {file_name}')
             with open(file_name, 'wb+') as f:
                 f.write(response.content)
+
+            self._add_tags(file_name, dt)
 
     def _download_internal(self, is_video, links:LinkCacheUser):
 
@@ -247,7 +278,7 @@ class DownloadHelper:
             self._dl_from_list(link_list, is_video, links)
             return
 
-        num_procs = 4
+        num_procs = 16
         outer_list = self._split_list(link_list, num_procs)
 
         proc_list = []
