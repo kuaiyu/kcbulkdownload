@@ -357,11 +357,13 @@ def main():
     clicker.browser.close()
 
     links.save_links(clicker.image_links, clicker.video_links)
-    links.write_json()
 
     DownloadHelper(args).download_all(links)
 
-    print(f'End Script')
+    # Write at the end in case of any errors during download
+    print(f'End Script. Saving Json')
+    links.write_json()
+
 
 if __name__ == "__main__":
     main()
