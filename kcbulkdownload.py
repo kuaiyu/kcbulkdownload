@@ -305,7 +305,7 @@ def get_args():
             description="""
     Use a Selenium bot to click all of your child's images/videos ~1000 per year and then scrape
     all image links to a file usually `links.json`. Then download all of these images.
-    TODO: tag them with time and gps coordinates.
+    The script also tags them with time and gps coordinates.
 """,
             formatter_class=argparse.RawTextHelpFormatter
             )
