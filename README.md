@@ -5,7 +5,7 @@ usage: kcbulkdownload.py [-h] [--json_file JSON_FILE] --child_name CHILD_NAME [-
 
     Use a Selenium bot to click all of your child's images/videos ~1000 per year and then scrape
     all image links to a file usually `links.json`. Then download all of these images.
-    TODO: tag them with time and gps coordinates.
+    The script also tags them with time and gps coordinates.
 
 optional arguments:
   -h, --help            show this help message and exit
