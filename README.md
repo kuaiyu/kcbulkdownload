@@ -39,6 +39,7 @@ There are some manual steps required
 ### Requirements
 - python3
 - see [requirements.txt](./requirements.txt)
+- Exif tool for tagging images - https://exiftool.org/index.html
 
 ### Errors
 - Some of the scrapped URL's lead to an access denied request. I did not find it worth my time to handle these errors. I've logged the URL. You can look at the script output and manually try to find the image.
